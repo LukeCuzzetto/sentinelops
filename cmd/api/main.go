@@ -12,15 +12,17 @@ import (
 	"time"
 
 	"github.com/LukeCuzzetto/sentinelops/internal/config"
+	"github.com/LukeCuzzetto/sentinelops/internal/database"
 	"github.com/LukeCuzzetto/sentinelops/internal/httpapi"
 )
 
 const (
-	serverReadHeaderTimeout = 5 * time.Second
-	serverReadTimeout       = 10 * time.Second
-	serverWriteTimeout      = 30 * time.Second
-	serverIdleTimeout       = 60 * time.Second
-	serverShutdownTimeout   = 10 * time.Second
+	databaseConnectionTimeout = 5 * time.Second
+	serverReadHeaderTimeout   = 5 * time.Second
+	serverReadTimeout         = 10 * time.Second
+	serverWriteTimeout        = 30 * time.Second
+	serverIdleTimeout         = 60 * time.Second
+	serverShutdownTimeout     = 10 * time.Second
 )
 
 func newHTTPServer(address string, handler http.Handler) *http.Server {
@@ -50,6 +52,26 @@ func run(logger *log.Logger) error {
 
 	}
 
+	databaseContext, cancelDatabase := context.WithTimeout(
+		context.Background(),
+		databaseConnectionTimeout,
+	)
+	defer cancelDatabase()
+
+	databasePool, err := database.Open(
+		databaseContext,
+		cfg.DatabaseURL,
+	)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+
+	defer func() {
+		databasePool.Close()
+		logger.Println("database connection pool closed")
+	}()
+	logger.Println("database connection pool established")
+
 	router := httpapi.NewRouter()
 
 	server := newHTTPServer(cfg.Address, router)
@@ -78,7 +100,7 @@ func run(logger *log.Logger) error {
 		return nil
 
 	case <-shutdownSignal.Done():
-		logger.Println("shutdown signal recevied")
+		logger.Println("shutdown signal received")
 	}
 
 	shutdownContext, cancelShutdown := context.WithTimeout(
@@ -88,7 +110,7 @@ func run(logger *log.Logger) error {
 	defer cancelShutdown()
 
 	if err := server.Shutdown(shutdownContext); err != nil {
-		return fmt.Errorf("graceful shutdown")
+		return fmt.Errorf("graceful shutdown: %w", err)
 	}
 
 	logger.Println("SentinelOps API stopped gracefully")
