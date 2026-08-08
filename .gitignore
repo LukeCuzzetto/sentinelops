@@ -1,0 +1,12 @@
+# Environment
+.env
+
+# Build output
+bin/
+dist/
+
+# Editor / OS
+.DS_Store
+
+# Local files
+*.log
