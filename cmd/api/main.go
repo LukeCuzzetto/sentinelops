@@ -72,7 +72,9 @@ func run(logger *log.Logger) error {
 	}()
 	logger.Println("database connection pool established")
 
-	router := httpapi.NewRouter()
+	app := httpapi.NewApplication(logger, databasePool)
+
+	router := app.Router()
 
 	server := newHTTPServer(cfg.Address, router)
 
