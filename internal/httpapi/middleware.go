@@ -10,7 +10,7 @@ type responseRecorder struct {
 	statusCode int
 }
 
-func (recorder responseRecorder) WriteHeader(code int) {
+func (recorder *responseRecorder) WriteHeader(code int) {
 	if recorder.statusCode != 0 {
 		return
 	}
@@ -19,9 +19,9 @@ func (recorder responseRecorder) WriteHeader(code int) {
 	recorder.ResponseWriter.WriteHeader(code)
 }
 
-func (recorder responseRecorder) Write(b []byte) (int, error) {
+func (recorder *responseRecorder) Write(b []byte) (int, error) {
 	if recorder.statusCode == 0 {
-		recorder.statusCode = http.StatusOK
+		recorder.WriteHeader(http.StatusOK)
 	}
 
 	return recorder.ResponseWriter.Write(b)
