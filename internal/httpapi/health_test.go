@@ -48,6 +48,7 @@ func TestReadinnessHandlerWhenDatabaseIsReady(t *testing.T) {
 	app := newTestApplication(stubDatabase{})
 
 	request := httptest.NewRequest(http.MethodGet, "/ready", nil)
+
 	recorder := httptest.NewRecorder()
 
 	app.Router().ServeHTTP(recorder, request)
