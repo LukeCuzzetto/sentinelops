@@ -5,13 +5,15 @@ import (
 )
 
 type Application struct {
-	logger   *log.Logger
-	database Database
+	logger               *log.Logger
+	database             Database
+	spacecraftRepository SpacecraftRepository
 }
 
-func NewApplication(logger *log.Logger, database Database) *Application {
+func NewApplication(logger *log.Logger, database Database, spacecraftRepository SpacecraftRepository) *Application {
 	return &Application{
-		logger:   logger,
-		database: database,
+		logger:               logger,
+		database:             database,
+		spacecraftRepository: spacecraftRepository,
 	}
 }

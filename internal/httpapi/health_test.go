@@ -8,10 +8,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/LukeCuzzetto/sentinelops/internal/spacecraft"
 )
 
 type stubDatabase struct {
 	pingErr error
+}
+
+type stubSpacecraftRepository struct{}
+
+func (stubSpacecraftRepository) CreateSpacecraft(ctx context.Context, name string) (spacecraft.Spacecraft, error) {
+	return spacecraft.Spacecraft{}, nil
+}
+
+func (stubSpacecraftRepository) GetSpacecraftByID(ctx context.Context, id int64) (spacecraft.Spacecraft, error) {
+	return spacecraft.Spacecraft{}, nil
+}
+
+func (stubSpacecraftRepository) ListSpacecraft(ctx context.Context) ([]spacecraft.Spacecraft, error) {
+	return []spacecraft.Spacecraft{}, nil
 }
 
 func (db stubDatabase) Ping(ctx context.Context) error {
@@ -21,7 +37,7 @@ func (db stubDatabase) Ping(ctx context.Context) error {
 func newTestApplication(database Database) *Application {
 	logger := log.New(&bytes.Buffer{}, "", 0)
 
-	return NewApplication(logger, database)
+	return NewApplication(logger, database, stubSpacecraftRepository{})
 
 }
 

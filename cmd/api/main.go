@@ -14,6 +14,7 @@ import (
 	"github.com/LukeCuzzetto/sentinelops/internal/config"
 	"github.com/LukeCuzzetto/sentinelops/internal/database"
 	"github.com/LukeCuzzetto/sentinelops/internal/httpapi"
+	"github.com/LukeCuzzetto/sentinelops/internal/spacecraft"
 )
 
 const (
@@ -72,7 +73,9 @@ func run(logger *log.Logger) error {
 	}()
 	logger.Println("database connection pool established")
 
-	app := httpapi.NewApplication(logger, databasePool)
+	spacecraftRepository := spacecraft.NewRepository(databasePool)
+
+	app := httpapi.NewApplication(logger, databasePool, spacecraftRepository)
 
 	router := app.Router()
 
