@@ -15,6 +15,7 @@ import (
 	"github.com/LukeCuzzetto/sentinelops/internal/database"
 	"github.com/LukeCuzzetto/sentinelops/internal/httpapi"
 	"github.com/LukeCuzzetto/sentinelops/internal/spacecraft"
+	"github.com/LukeCuzzetto/sentinelops/internal/telemetry"
 )
 
 const (
@@ -75,7 +76,9 @@ func run(logger *log.Logger) error {
 
 	spacecraftRepository := spacecraft.NewRepository(databasePool)
 
-	app := httpapi.NewApplication(logger, databasePool, spacecraftRepository)
+	telemetryRepository := telemetry.NewRepository(databasePool)
+
+	app := httpapi.NewApplication(logger, databasePool, spacecraftRepository, telemetryRepository)
 
 	router := app.Router()
 
