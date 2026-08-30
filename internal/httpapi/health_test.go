@@ -37,7 +37,7 @@ func (db stubDatabase) Ping(ctx context.Context) error {
 func newTestApplication(database Database) *Application {
 	logger := log.New(&bytes.Buffer{}, "", 0)
 
-	return NewApplication(logger, database, stubSpacecraftRepository{})
+	return NewApplication(logger, database, stubSpacecraftRepository{}, telemetryRepositoryStub{})
 
 }
 

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/LukeCuzzetto/sentinelops/internal/spacecraft"
+	"github.com/LukeCuzzetto/sentinelops/internal/telemetry"
 )
 
 type spacecraftRepositoryStub struct {
@@ -22,6 +23,13 @@ type spacecraftRepositoryStub struct {
 
 	listResult []spacecraft.Spacecraft
 	listErr    error
+}
+
+type telemetryRepositoryStub struct {
+}
+
+func (stub telemetryRepositoryStub) CreateSample(ctx context.Context, params telemetry.CreateSampleParams) (telemetry.Sample, error) {
+	return telemetry.Sample{}, nil
 }
 
 func (stub spacecraftRepositoryStub) CreateSpacecraft(ctx context.Context, name string) (spacecraft.Spacecraft, error) {
@@ -43,7 +51,7 @@ func newSpacecraftTestApplication(repository SpacecraftRepository) *Application 
 		0,
 	)
 
-	return NewApplication(logger, stubDatabase{}, repository)
+	return NewApplication(logger, stubDatabase{}, repository, telemetryRepositoryStub{})
 }
 
 func TestCreateSpacecraftHandler(t *testing.T) {
