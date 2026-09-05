@@ -87,3 +87,75 @@ func (repository *Repository) CreateSample(
 
 	return sample, nil
 }
+
+func (repository *Repository) ListSamplesBySpacecraftID(
+	ctx context.Context,
+	spacecraftID int64,
+) ([]Sample, error) {
+	const query = `
+		SELECT
+			id,
+			spacecraft_id,
+			sequence_number,
+			source_timestamp,
+			received_at,
+			battery_voltage,
+			battery_soc_percent,
+			temperature_c,
+			mode
+		FROM telemetry_samples
+		WHERE spacecraft_id = $1
+		ORDER BY source_timestamp DESC, sequence_number DESC
+	`
+
+	rows, err := repository.database.Query(
+		ctx,
+		query,
+		spacecraftID,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"list telemetry samples by spacecraft ID: %w",
+			err,
+		)
+	}
+
+	defer rows.Close()
+
+	samples := make([]Sample, 0)
+
+	for rows.Next() {
+		var sample Sample
+
+		err := rows.Scan(
+			&sample.ID,
+			&sample.SpacecraftID,
+			&sample.SequenceNumber,
+			&sample.SourceTimestamp,
+			&sample.ReceivedAt,
+			&sample.BatteryVoltage,
+			&sample.BatterySOCPercent,
+			&sample.TemperatureC,
+			&sample.Mode,
+		)
+
+		if err != nil {
+			return nil, fmt.Errorf(
+				"scan telemetry sample: %w",
+				err,
+			)
+		}
+
+		samples = append(samples, sample)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf(
+			"iterate telemetry samples: %w",
+			err,
+		)
+	}
+
+	return samples, nil
+}

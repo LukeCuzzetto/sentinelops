@@ -105,3 +105,110 @@ func TestRepositoryCreateSample(t *testing.T) {
 	}
 
 }
+
+func TestRepositoryCreateSampleInvalidSpacecraftID(t *testing.T) {
+	databaseURL := os.Getenv("DATABASE_URL")
+
+	if databaseURL == "" {
+		t.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(
+		ctx, databaseURL,
+	)
+	if err != nil {
+		t.Fatalf("create database pool: %v", err)
+	}
+
+	defer pool.Close()
+
+	spacecraftRepository := spacecraft.NewRepository(pool)
+
+	spacecraftName := "HISTORY-TEST-" + time.Now().Format("20060102150405.000000000")
+
+	createdSpacecraft, err := spacecraftRepository.CreateSpacecraft(ctx, spacecraftName)
+
+	if err != nil {
+		t.Fatalf("create test spacecraft: %v", err)
+	}
+	defer func() {
+		_, _ = pool.Exec(
+			ctx, "DELETE FROM spacecraft WHERE id = $1",
+			createdSpacecraft.ID,
+		)
+	}()
+
+	repository := NewRepository(pool)
+
+	baseTime := time.Now().UTC().Truncate(time.Microsecond)
+
+	first, err := repository.CreateSample(ctx, CreateSampleParams{
+		SpacecraftID:      createdSpacecraft.ID,
+		SequenceNumber:    101,
+		SourceTimestamp:   baseTime,
+		BatteryVoltage:    8.2,
+		BatterySOCPercent: 80,
+		TemperatureC:      20,
+		Mode:              "nominal",
+	})
+
+	if err != nil {
+		t.Fatalf("create first telemetry sample: %v", err)
+	}
+
+	third, err := repository.CreateSample(ctx, CreateSampleParams{
+		SpacecraftID:      createdSpacecraft.ID,
+		SequenceNumber:    103,
+		SourceTimestamp:   baseTime.Add(2 * time.Minute),
+		BatteryVoltage:    8.0,
+		BatterySOCPercent: 78,
+		TemperatureC:      22,
+		Mode:              "nominal",
+	})
+
+	if err != nil {
+		t.Fatalf("create third telemetry sample: %v", err)
+	}
+
+	second, err := repository.CreateSample(ctx, CreateSampleParams{
+		SpacecraftID:      createdSpacecraft.ID,
+		SequenceNumber:    102,
+		SourceTimestamp:   baseTime.Add(time.Minute),
+		BatteryVoltage:    8.1,
+		BatterySOCPercent: 79,
+		TemperatureC:      21,
+		Mode:              "nominal",
+	})
+
+	if err != nil {
+		t.Fatalf("create second telemetry sample: %v", err)
+	}
+
+	defer func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM telemetry_samples WHERE id = $1", first.ID)
+		_, _ = pool.Exec(ctx, "DELETE FROM telemetry_samples WHERE id = $1", second.ID)
+		_, _ = pool.Exec(ctx, "DELETE FROM telemetry_samples WHERE id = $1", third.ID)
+	}()
+
+	samples, err := repository.ListSamplesBySpacecraftID(
+		ctx, createdSpacecraft.ID,
+	)
+
+	if err != nil {
+		t.Fatalf("list telemetry samples by spacecraft ID: %v", err)
+	}
+
+	if len(samples) != 3 {
+		t.Fatalf("expected 3 telemetry samples, got %d", len(samples))
+	}
+
+	expectedSequenceNumbers := []int64{103, 102, 101}
+
+	for index, expected := range expectedSequenceNumbers {
+		if samples[index].SequenceNumber != expected {
+			t.Errorf("expected sequence number %d, got %d", expected, samples[index].SequenceNumber)
+		}
+	}
+}

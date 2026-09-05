@@ -16,6 +16,11 @@ type TelemetryRepository interface {
 		ctx context.Context,
 		params telemetry.CreateSampleParams,
 	) (telemetry.Sample, error)
+
+	ListSamplesBySpacecraftID(
+		ctx context.Context,
+		spacecraftID int64,
+	) ([]telemetry.Sample, error)
 }
 
 type createTelemetryRequest struct {
@@ -28,10 +33,17 @@ type createTelemetryRequest struct {
 }
 
 func (app *Application) telemetryHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	switch r.Method {
+	case http.MethodPost:
+		app.createTelemetryHandler(w, r)
+
+	case http.MethodGet:
+		app.listTelemetryHandler(w, r)
+
+	default:
 		w.Header().Set(
 			"Allow",
-			http.MethodPost,
+			"GET, POST",
 		)
 
 		_ = writeJSON(
@@ -41,11 +53,7 @@ func (app *Application) telemetryHandler(w http.ResponseWriter, r *http.Request)
 				Error: "method not allowed",
 			},
 		)
-
-		return
 	}
-
-	app.createTelemetryHandler(w, r)
 }
 
 func (app *Application) createTelemetryHandler(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +109,7 @@ func (app *Application) createTelemetryHandler(w http.ResponseWriter, r *http.Re
 			w,
 			http.StatusBadRequest,
 			errorResponse{
-				Error: "battery_voltage must be zero or greater",
+				Error: "source_timestamp is required",
 			},
 		)
 
@@ -173,5 +181,44 @@ func (app *Application) createTelemetryHandler(w http.ResponseWriter, r *http.Re
 		w,
 		http.StatusCreated,
 		created,
+	)
+}
+
+func (app *Application) listTelemetryHandler(w http.ResponseWriter, r *http.Request) {
+	idValue := r.PathValue("id")
+
+	spacecraftID, err := strconv.ParseInt(idValue, 10, 64)
+
+	if err != nil || spacecraftID < 1 {
+		_ = writeJSON(
+			w,
+			http.StatusBadRequest,
+			errorResponse{
+				Error: "invalid spacecraft id",
+			},
+		)
+		return
+
+	}
+
+	samples, err := app.telemetryRepository.ListSamplesBySpacecraftID(r.Context(), spacecraftID)
+
+	if err != nil {
+		app.logger.Printf("list telemetry samples failed: %v", err)
+
+		_ = writeJSON(
+			w,
+			http.StatusInternalServerError,
+			errorResponse{
+				Error: "internal server error",
+			},
+		)
+		return
+	}
+
+	_ = writeJSON(
+		w,
+		http.StatusOK,
+		samples,
 	)
 }

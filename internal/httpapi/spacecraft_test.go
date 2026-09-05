@@ -32,6 +32,10 @@ func (stub telemetryRepositoryStub) CreateSample(ctx context.Context, params tel
 	return telemetry.Sample{}, nil
 }
 
+func (stub telemetryRepositoryStub) ListSamplesBySpacecraftID(ctx context.Context, spacecraftID int64) ([]telemetry.Sample, error) {
+	return []telemetry.Sample{}, nil
+}
+
 func (stub spacecraftRepositoryStub) CreateSpacecraft(ctx context.Context, name string) (spacecraft.Spacecraft, error) {
 	return stub.createResult, stub.createErr
 }
