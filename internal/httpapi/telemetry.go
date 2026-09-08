@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,6 +22,10 @@ type TelemetryRepository interface {
 		ctx context.Context,
 		spacecraftID int64,
 	) ([]telemetry.Sample, error)
+	GetLatestSampleBySpacecraftID(
+		ctx context.Context,
+		spacecraftID int64,
+	) (telemetry.Sample, error)
 }
 
 type createTelemetryRequest struct {
@@ -220,5 +225,71 @@ func (app *Application) listTelemetryHandler(w http.ResponseWriter, r *http.Requ
 		w,
 		http.StatusOK,
 		samples,
+	)
+}
+
+func (app *Application) latestTelemetryHandler(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != http.MethodGet {
+		w.Header().Set(
+			"Allow",
+			http.MethodGet,
+		)
+
+		_ = writeJSON(
+			w,
+			http.StatusMethodNotAllowed,
+			errorResponse{
+				Error: "method not allowed",
+			},
+		)
+		return
+	}
+
+	idValue := r.PathValue("id")
+
+	spacecraftID, err := strconv.ParseInt(idValue, 10, 64)
+
+	if err != nil || spacecraftID < 1 {
+		_ = writeJSON(
+			w,
+			http.StatusBadRequest,
+			errorResponse{
+				Error: "invalid spacecraft id",
+			},
+		)
+		return
+	}
+
+	latest, err := app.telemetryRepository.GetLatestSampleBySpacecraftID(r.Context(), spacecraftID)
+
+	if errors.Is(err, telemetry.ErrNotFound) {
+		_ = writeJSON(
+			w,
+			http.StatusNotFound,
+			errorResponse{
+				Error: "no telemetry samples found for spacecraft",
+			},
+		)
+		return
+	}
+
+	if err != nil {
+		app.logger.Printf("get latest telemetry sample failed: %v", err)
+
+		_ = writeJSON(
+			w,
+			http.StatusInternalServerError,
+			errorResponse{
+				Error: "internal server error",
+			},
+		)
+		return
+	}
+
+	_ = writeJSON(
+		w,
+		http.StatusOK,
+		latest,
 	)
 }

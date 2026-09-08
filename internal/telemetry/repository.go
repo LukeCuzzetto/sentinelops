@@ -2,10 +2,14 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var ErrNotFound = errors.New("telemetry sample not found")
 
 type Repository struct {
 	database *pgxpool.Pool
@@ -158,4 +162,61 @@ func (repository *Repository) ListSamplesBySpacecraftID(
 	}
 
 	return samples, nil
+}
+
+func (repository *Repository) GetLatestSampleBySpacecraftID(
+	ctx context.Context,
+	spacecraftID int64,
+) (Sample, error) {
+	const query = `
+		SELECT
+			id,
+			spacecraft_id,
+			sequence_number,
+			source_timestamp,
+			received_at,
+			battery_voltage,
+			battery_soc_percent,
+			temperature_c,
+			mode
+		FROM telemetry_samples
+		WHERE spacecraft_id = $1
+		ORDER BY source_timestamp DESC, sequence_number DESC
+		LIMIT 1
+	`
+
+	var sample Sample
+
+	err := repository.database.QueryRow(
+		ctx,
+		query,
+		spacecraftID,
+	).Scan(
+		&sample.ID,
+		&sample.SpacecraftID,
+		&sample.SequenceNumber,
+		&sample.SourceTimestamp,
+		&sample.ReceivedAt,
+		&sample.BatteryVoltage,
+		&sample.BatterySOCPercent,
+		&sample.TemperatureC,
+		&sample.Mode,
+	)
+
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Sample{}, fmt.Errorf(
+			"%w: spacecraft if %d",
+			ErrNotFound,
+			spacecraftID,
+		)
+	}
+
+	if err != nil {
+		return Sample{}, fmt.Errorf(
+			"get latest telemetry sample by spacecraft ID: %w",
+			err,
+		)
+	}
+
+	return sample, nil
 }

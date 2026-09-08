@@ -8,6 +8,7 @@ func (app *Application) Router() http.Handler {
 	mux.HandleFunc("/spacecraft", app.spacecraftCollectionHandler)
 	mux.HandleFunc("/spacecraft/{id}", app.spacecraftByIDHandler)
 	mux.HandleFunc("/spacecraft/{id}/telemetry", app.telemetryHandler)
+	mux.HandleFunc("/spacecraft/{id}/telemetry/latest", app.latestTelemetryHandler)
 	mux.HandleFunc("/ready", app.readinessHandler)
 	mux.HandleFunc("/health", app.healthHandler)
 	mux.HandleFunc("/", app.notFoundHandler)
