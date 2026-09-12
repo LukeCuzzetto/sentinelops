@@ -40,6 +40,10 @@ func (stub telemetryRepositoryStub) GetLatestSampleBySpacecraftID(ctx context.Co
 	return telemetry.Sample{}, nil
 }
 
+func (stub telemetryRepositoryStub) IngestSample(ctx context.Context, params telemetry.CreateSampleParams) (telemetry.IngestResult, error) {
+	return telemetry.IngestResult{}, nil
+}
+
 func (stub spacecraftRepositoryStub) CreateSpacecraft(ctx context.Context, name string) (spacecraft.Spacecraft, error) {
 	return stub.createResult, stub.createErr
 }

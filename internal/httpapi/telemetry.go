@@ -13,10 +13,10 @@ import (
 )
 
 type TelemetryRepository interface {
-	CreateSample(
+	IngestSample(
 		ctx context.Context,
 		params telemetry.CreateSampleParams,
-	) (telemetry.Sample, error)
+	) (telemetry.IngestResult, error)
 
 	ListSamplesBySpacecraftID(
 		ctx context.Context,
@@ -167,9 +167,31 @@ func (app *Application) createTelemetryHandler(w http.ResponseWriter, r *http.Re
 		Mode:              input.Mode,
 	}
 
-	created, err := app.telemetryRepository.CreateSample(r.Context(), params)
+	result, err := app.telemetryRepository.IngestSample(r.Context(), params)
 
 	if err != nil {
+		if errors.Is(err, telemetry.ErrSpacecraftNotFound) {
+			_ = writeJSON(
+				w,
+				http.StatusNotFound,
+				errorResponse{
+					Error: "spacecraft not found",
+				},
+			)
+			return
+		}
+
+		if errors.Is(err, telemetry.ErrSequenceConflict) {
+			_ = writeJSON(
+				w,
+				http.StatusConflict,
+				errorResponse{
+					Error: "telemetry sequence conflict",
+				},
+			)
+			return
+		}
+
 		app.logger.Printf("create telemetry sample failed: %v", err)
 
 		_ = writeJSON(
@@ -182,10 +204,15 @@ func (app *Application) createTelemetryHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	status := http.StatusOK
+	if result.Created {
+		status = http.StatusCreated
+	}
+
 	_ = writeJSON(
 		w,
-		http.StatusCreated,
-		created,
+		status,
+		result.Sample,
 	)
 }
 

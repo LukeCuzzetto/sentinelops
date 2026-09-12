@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -313,5 +314,193 @@ func TestRepositoryGetLatestSampleBySpacecraftID(t *testing.T) {
 
 	if latest.SequenceNumber != 103 {
 		t.Errorf("expected latest sample sequence number 103, got %d", latest.SequenceNumber)
+	}
+}
+
+func TestRepositoryCreateSampleSpacecraftNotFound(t *testing.T) {
+
+	databaseURL := os.Getenv("DATABASE_URL")
+
+	if databaseURL == "" {
+		t.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(
+		ctx, databaseURL,
+	)
+	if err != nil {
+		t.Fatalf("create database pool: %v", err)
+	}
+
+	defer pool.Close()
+
+	repository := NewRepository(pool)
+
+	_, err = repository.CreateSample(ctx, CreateSampleParams{
+		SpacecraftID:      9223372036854775807,
+		SequenceNumber:    101,
+		SourceTimestamp:   time.Now().UTC(),
+		BatteryVoltage:    8.2,
+		BatterySOCPercent: 76.4,
+		TemperatureC:      21.7,
+		Mode:              "nominal",
+	})
+
+	if !errors.Is(err, ErrSpacecraftNotFound) {
+		t.Fatalf("expected ErrSpacecraftNotFound, got %v", err)
+	}
+}
+
+func TestRepositoryCreateSampleDuplicateSequenceNumber(t *testing.T) {
+
+	databaseURL := os.Getenv("DATABASE_URL")
+
+	if databaseURL == "" {
+		t.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(
+		ctx, databaseURL,
+	)
+	if err != nil {
+		t.Fatalf("create database pool: %v", err)
+	}
+
+	defer pool.Close()
+
+	spacecraftRepository := spacecraft.NewRepository(pool)
+
+	spacecraftName := "DUPLICATE-TEST-" + time.Now().Format("20060102150405.000000000")
+
+	createdSpacecraft, err := spacecraftRepository.CreateSpacecraft(ctx, spacecraftName)
+
+	if err != nil {
+		t.Fatalf("create test spacecraft: %v", err)
+	}
+	defer func() {
+		_, _ = pool.Exec(
+			ctx, "DELETE FROM spacecraft WHERE id = $1",
+			createdSpacecraft.ID,
+		)
+	}()
+
+	repository := NewRepository(pool)
+
+	params := CreateSampleParams{
+		SpacecraftID:      createdSpacecraft.ID,
+		SequenceNumber:    500,
+		SourceTimestamp:   time.Now().UTC().Truncate(time.Microsecond),
+		BatteryVoltage:    8.2,
+		BatterySOCPercent: 75,
+		TemperatureC:      21,
+		Mode:              "nominal",
+	}
+
+	created, err := repository.CreateSample(ctx, params)
+
+	if err != nil {
+		t.Fatalf("create first telemetry sample: %v", err)
+	}
+
+	defer func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM telemetry_samples WHERE id = $1", created.ID)
+	}()
+
+	_, err = repository.CreateSample(ctx, params)
+
+	if !errors.Is(err, ErrSequenceAlreadyExists) {
+		t.Fatalf("expected ErrSequenceAlreadyExists, got %v", err)
+	}
+}
+
+func TestRepositoryIngestSample(t *testing.T) {
+
+	databaseURL := os.Getenv("DATABASE_URL")
+
+	if databaseURL == "" {
+		t.Fatal("DATABASE_URL environment variable is not set")
+	}
+
+	ctx := context.Background()
+
+	pool, err := pgxpool.New(
+		ctx, databaseURL,
+	)
+	if err != nil {
+		t.Fatalf("create database pool: %v", err)
+	}
+
+	defer pool.Close()
+
+	spacecraftRepository := spacecraft.NewRepository(pool)
+
+	spacecraftName := "DUPLICATE-TEST-" + time.Now().Format("20060102150405.000000000")
+
+	createdSpacecraft, err := spacecraftRepository.CreateSpacecraft(ctx, spacecraftName)
+
+	if err != nil {
+		t.Fatalf("create test spacecraft: %v", err)
+	}
+	defer func() {
+		_, _ = pool.Exec(
+			ctx, "DELETE FROM spacecraft WHERE id = $1",
+			createdSpacecraft.ID,
+		)
+	}()
+
+	repository := NewRepository(pool)
+
+	params := CreateSampleParams{
+		SpacecraftID:      createdSpacecraft.ID,
+		SequenceNumber:    500,
+		SourceTimestamp:   time.Now().UTC().Truncate(time.Microsecond),
+		BatteryVoltage:    8.2,
+		BatterySOCPercent: 75,
+		TemperatureC:      21,
+		Mode:              "nominal",
+	}
+
+	first, err := repository.IngestSample(ctx, params)
+
+	if err != nil {
+		t.Fatalf("ingest first telemetry sample: %v", err)
+	}
+
+	defer func() {
+		_, _ = pool.Exec(ctx, "DELETE FROM telemetry_samples WHERE id = $1", first.Sample.ID)
+	}()
+
+	if !first.Created {
+		t.Fatal("expected first sample to be created")
+	}
+
+	second, err := repository.IngestSample(ctx, params)
+
+	if err != nil {
+		t.Fatalf("ingest second telemetry sample: %v", err)
+	}
+
+	if second.Created {
+		t.Fatal("expected second sample to be not created")
+	}
+
+	if first.Sample.ID != second.Sample.ID {
+		t.Errorf("expected duplicate ingestion to return sample ID %d, got %d", first.Sample.ID, second.Sample.ID)
+	}
+
+	conflictingParams := params
+	conflictingParams.TemperatureC = 55
+
+	_, err = repository.IngestSample(
+		ctx,
+		conflictingParams,
+	)
+
+	if !errors.Is(err, ErrSequenceConflict) {
+		t.Fatalf("expected ErrSequenceConflict, got %v", err)
 	}
 }
