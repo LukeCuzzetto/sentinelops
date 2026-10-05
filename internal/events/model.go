@@ -7,18 +7,27 @@ import (
 type Severity string
 
 const (
-	SeverityInfo    Severity = "info"
-	SeverityWarning Severity = "warning"
-	SeverityError   Severity = "error"
+	SeverityInfo     Severity = "info"
+	SeverityWarning  Severity = "warning"
+	SeverityCritical Severity = "critical"
 )
 
 type Event struct {
-	ID                string    `json:"id"`
-	SpacecraftiD      int64     `json:"spacecraft_id"`
+	ID                int64     `json:"id"`
+	SpacecraftID      int64     `json:"spacecraft_id"`
 	TelemetrySampleID *int64    `json:"telemetry_sample_id,omitempty"`
 	Code              string    `json:"code"`
 	Severity          Severity  `json:"severity"`
 	Message           string    `json:"message"`
-	OccuredAt         time.Time `json:"occurred_at"`
+	OccurredAt        time.Time `json:"occurred_at"`
 	CreatedAt         time.Time `json:"created_at"`
+}
+
+type CreateEventParams struct {
+	SpacecraftID      int64
+	TelemetrySampleID *int64
+	Code              string
+	Severity          Severity
+	Message           string
+	OccurredAt        time.Time
 }
